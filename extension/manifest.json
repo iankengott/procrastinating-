@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Procrastinating Attention Tracker",
+  "description": "Tracks active browser attention locally and sends sessions to your local dashboard.",
+  "version": "0.1.0",
+  "permissions": ["tabs", "idle", "storage"],
+  "host_permissions": ["http://localhost:3847/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Attention Tracker",
+    "default_popup": "popup.html"
+  }
+}
