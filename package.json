@@ -1,0 +1,16 @@
+{
+  "name": "procrastinating",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local-first attention tracker with browser extension, SQLite storage, and dashboard.",
+  "scripts": {
+    "dev": "node --experimental-sqlite apps/api/server.js",
+    "start": "node --experimental-sqlite apps/api/server.js",
+    "import:takeout": "node --experimental-sqlite tools/import-takeout.js",
+    "test": "node --experimental-sqlite tools/verify.js"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
