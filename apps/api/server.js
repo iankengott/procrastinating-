@@ -3,14 +3,19 @@ import { extname, join, resolve } from "node:path";
 import { createServer } from "node:http";
 import {
   openDatabase,
+  addTrackingRule,
   deleteSession,
   deleteSessionsInRange,
+  deleteSessionsForDomain,
+  deleteTrackingRule,
   endSession,
   exportSessions,
+  getSettings,
   heartbeatSession,
   listSessions,
   startSession,
   summarize,
+  updateSetting,
   updateSessionCategory
 } from "./db.js";
 
@@ -82,6 +87,13 @@ createServer(async (req, res) => {
       return;
     }
 
+    const domainDeleteMatch = url.pathname.match(/^\/api\/domains\/([^/]+)\/sessions$/);
+    if (domainDeleteMatch && req.method === "DELETE") {
+      const range = url.searchParams.size ? resolveRange(url.searchParams) : {};
+      sendJson(res, deleteSessionsForDomain(db, decodeURIComponent(domainDeleteMatch[1]), range));
+      return;
+    }
+
     const sessionMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)$/);
     if (sessionMatch && req.method === "DELETE") {
       sendJson(res, deleteSession(db, decodeURIComponent(sessionMatch[1])));
@@ -100,6 +112,28 @@ createServer(async (req, res) => {
         ...range,
         sessions: exportSessions(db, range)
       });
+      return;
+    }
+
+    if (url.pathname === "/api/settings" && req.method === "GET") {
+      sendJson(res, getSettings(db));
+      return;
+    }
+
+    if (url.pathname === "/api/settings" && req.method === "PATCH") {
+      const body = await readJson(req);
+      sendJson(res, updateSetting(db, body.key, body.value));
+      return;
+    }
+
+    if (url.pathname === "/api/tracking-rules" && req.method === "POST") {
+      sendJson(res, addTrackingRule(db, await readJson(req)), 201);
+      return;
+    }
+
+    const trackingRuleMatch = url.pathname.match(/^\/api\/tracking-rules\/(\d+)$/);
+    if (trackingRuleMatch && req.method === "DELETE") {
+      sendJson(res, deleteTrackingRule(db, Number(trackingRuleMatch[1])));
       return;
     }
 

@@ -8,6 +8,7 @@
     "dev": "node --experimental-sqlite apps/api/server.js",
     "start": "node --experimental-sqlite apps/api/server.js",
     "import:takeout": "node --experimental-sqlite tools/import-takeout.js",
+    "seed:demo": "node --experimental-sqlite tools/seed-demo.js",
     "test": "node --experimental-sqlite tools/verify.js"
   },
   "engines": {

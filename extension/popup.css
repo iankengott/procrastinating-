@@ -34,6 +34,12 @@ a {
   text-align: center;
 }
 
+.quick-pauses {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
 button {
   border: 0;
   color: white;

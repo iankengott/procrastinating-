@@ -3,15 +3,21 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   deleteSession,
+  deleteSessionsForDomain,
+  addTrackingRule,
   endSession,
   exportSessions,
   getSession,
+  getSettings,
+  importBackfilledSession,
   listSessions,
   openDatabase,
   startSession,
   summarize,
+  updateSetting,
   updateSessionCategory
 } from "../apps/api/db.js";
+import { importTakeoutPath } from "./import-takeout.js";
 
 const tempDir = mkdtempSync(join(tmpdir(), "procrastinating-"));
 const db = openDatabase(join(tempDir, "verify.sqlite"));
@@ -20,6 +26,8 @@ try {
   verifySessionLifecycle();
   verifyMergeKeepsActiveDuration();
   verifyCorrectionsAndDelete();
+  verifySettingsAndRules();
+  verifyImporterFixture();
   console.log("All verification checks passed.");
 } finally {
   rmSync(tempDir, { recursive: true, force: true });
@@ -100,6 +108,46 @@ function verifyCorrectionsAndDelete() {
 
   const result = deleteSession(db, "youtube-1");
   assert(result.deleted === 1, "delete should remove one session");
+}
+
+function verifySettingsAndRules() {
+  updateSetting(db, "tracking_mode", "all");
+  addTrackingRule(db, { domain: "blocked.example", action: "block" });
+  const ignored = startSession(db, {
+    id: "blocked-domain",
+    source: "verify",
+    url: "https://blocked.example/watch",
+    title: "Should not track",
+    start_at: "2026-06-21T16:00:00.000Z"
+  });
+
+  assert(ignored.ignored === true, "blocked domain should be ignored");
+
+  const deleted = deleteSessionsForDomain(db, "github.com");
+  assert(deleted.deleted === 1, "delete by domain should remove github session");
+
+  const settings = getSettings(db);
+  assert(settings.tracking_rules.some((rule) => rule.domain === "blocked.example"), "settings should expose tracking rules");
+}
+
+function verifyImporterFixture() {
+  const result = importTakeoutPath("tests/fixtures/takeout", db);
+  assert(result.imported === 4, "fixture importer should import four valid rows");
+  assert(result.skipped === 1, "fixture importer should skip one invalid row");
+
+  importBackfilledSession(db, {
+    id: "manual-backfill",
+    source: "verify_backfill",
+    url: "https://example.com/manual",
+    title: "Manual backfill",
+    start_at: "2026-06-21T17:00:00.000Z"
+  });
+
+  const summary = summarize(db, {
+    from: "2026-06-21T00:00:00.000Z",
+    to: "2026-06-22T00:00:00.000Z"
+  });
+  assert(summary.sessions.some((session) => session.backfilled === 1), "summary should include backfilled sessions");
 }
 
 function assert(condition, message) {

@@ -1,0 +1,24 @@
+[
+  {
+    "header": "YouTube",
+    "title": "Watched MatPat Five Nights Lore Explained",
+    "titleUrl": "https://www.youtube.com/watch?v=fnaf",
+    "time": "2026-06-21T14:00:00.000Z"
+  },
+  {
+    "header": "Google Search",
+    "title": "Searched for sqlite node api",
+    "subtitles": [
+      {
+        "name": "Search",
+        "url": "https://www.google.com/search?q=sqlite+node+api"
+      }
+    ],
+    "time": "2026-06-21T15:00:00.000Z"
+  },
+  {
+    "header": "Broken",
+    "title": "No URL here",
+    "time": "2026-06-21T16:00:00.000Z"
+  }
+]

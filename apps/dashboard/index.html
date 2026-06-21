@@ -16,6 +16,14 @@
     </header>
 
     <main>
+      <section class="setup" id="setup-panel">
+        <div>
+          <h2>First Run</h2>
+          <p>Start `npm run dev`, load the `extension` folder in Chrome, then browse normally. This dashboard updates every 30 seconds.</p>
+        </div>
+        <button id="dismiss-setup" type="button">Dismiss</button>
+      </section>
+
       <section class="controls" aria-label="Time range">
         <button class="range is-active" data-range="today">Today</button>
         <button class="range" data-range="last-hour">Last hour</button>
@@ -61,6 +69,33 @@
         </div>
       </section>
 
+      <section class="panel settings-panel">
+        <div class="panel-title">
+          <h2>Tracking & Privacy</h2>
+          <span id="privacy-summary">Local only</span>
+        </div>
+        <div class="settings-grid">
+          <form id="tracking-mode-form">
+            <label for="tracking-mode">Tracking mode</label>
+            <select id="tracking-mode">
+              <option value="all">Track all domains except blocked</option>
+              <option value="allowlist">Only track allowed domains</option>
+            </select>
+            <button type="submit">Save mode</button>
+          </form>
+          <form id="rule-form">
+            <label for="rule-domain">Domain rule</label>
+            <input id="rule-domain" type="text" placeholder="youtube.com">
+            <select id="rule-action">
+              <option value="block">Block</option>
+              <option value="allow">Allow</option>
+            </select>
+            <button type="submit">Add rule</button>
+          </form>
+        </div>
+        <div id="tracking-rules" class="rule-list"></div>
+      </section>
+
       <section class="panel sessions-panel">
         <div class="panel-title">
           <h2>Timeline</h2>
@@ -94,6 +129,7 @@
             <option value="mixed">Mixed</option>
           </select>
           <button class="domain-button" type="button">Apply to domain</button>
+          <button class="delete-domain-button" type="button">Delete domain in range</button>
           <button class="delete-button" type="button">Delete session</button>
         </div>
       </article>

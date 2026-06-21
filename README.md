@@ -19,8 +19,13 @@ The MVP is intentionally local-first. A Chrome extension records active browser 
 - You can correct one session or apply a correction to an entire domain.
 - Brief same-URL interruptions are merged without counting the away-time as active time.
 - Dashboard can export JSON, delete the current range, and delete individual sessions.
+- Dashboard can delete all sessions for a domain in the current range.
+- Tracking rules let you block domains or switch to allowlist-only tracking.
+- Tracking/privacy panel shows the local-only data posture.
 - Extension popup warns when the local API is offline.
+- Extension popup supports pause, 15-minute pause, and 1-hour pause.
 - Google Takeout/Chrome history backfill importer is scaffolded for pre-install history.
+- Demo data and verification fixtures are included.
 
 ## Run The Local App
 
@@ -46,6 +51,12 @@ Run verification checks:
 npm test
 ```
 
+Seed demo sessions for today:
+
+```bash
+npm run seed:demo
+```
+
 ## Load The Chrome Extension
 
 1. Open `chrome://extensions`.
@@ -55,6 +66,14 @@ npm test
 5. Keep `npm run dev` running so the extension can post to the local API.
 
 The extension ignores incognito/private tabs and browser-internal pages by default.
+
+The extension popup can:
+
+- pause/resume tracking
+- pause for 15 minutes
+- pause for 1 hour
+- open the dashboard
+- warn when the local API is not reachable
 
 ## Backfill Pre-Install History
 
@@ -71,6 +90,21 @@ Supported first-pass sources:
 - YouTube activity JSON
 - Chrome/browser history JSON
 - Google Search/My Activity JSON where a URL and timestamp are present
+
+The importer is tested against synthetic fixtures in `tests/fixtures/takeout`. Real Takeout exports may still need format-specific fixes.
+
+## Dashboard Controls
+
+The dashboard supports:
+
+- time windows: today, last hour, this week, this year, and since a custom date
+- JSON export for the current range
+- delete current range
+- delete one session
+- delete a domain in the current range
+- category corrections for one session or an entire domain
+- tracking mode: track all except blocked, or allowlist-only
+- domain rules: allow or block a domain
 
 ## Data Model
 
@@ -104,9 +138,9 @@ Example:
 ### MVP Polish
 
 - Test with the unpacked extension during normal browsing.
-- Add a better timeline view.
+- Add a calendar-scale timeline and richer day/week drilldowns.
 - Add more tests around API routes and importer formats.
-- Add clearer first-run setup guidance in the dashboard.
+- Add packaging/install scripts for less technical setup.
 
 ### Post-MVP: Google Account Connection
 

@@ -55,9 +55,27 @@ function migrate(db) {
 
     CREATE UNIQUE INDEX IF NOT EXISTS idx_corrections_unique
       ON corrections(matcher_type, matcher_value);
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS tracking_rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      domain TEXT NOT NULL,
+      action TEXT NOT NULL CHECK(action IN ('allow', 'block')),
+      note TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_tracking_rules_unique
+      ON tracking_rules(domain, action);
   `);
 
   ensureColumn(db, "sessions", "active_started_at", "TEXT");
+  ensureSetting(db, "tracking_mode", "all");
 }
 
 function ensureColumn(db, table, column, definition) {
@@ -71,11 +89,74 @@ export function getCorrections(db) {
   return db.prepare("SELECT matcher_type, matcher_value, category FROM corrections ORDER BY id DESC").all();
 }
 
+export function getSettings(db) {
+  const settings = Object.fromEntries(db.prepare("SELECT key, value FROM settings").all().map((row) => [row.key, row.value]));
+  const trackingRules = db.prepare("SELECT id, domain, action, note, created_at FROM tracking_rules ORDER BY action, domain").all();
+  return {
+    tracking_mode: settings.tracking_mode || "all",
+    tracking_rules: trackingRules,
+    privacy: {
+      storage: "local sqlite",
+      incognito: "ignored by extension",
+      remote_sync: "none",
+      oauth: "not enabled"
+    }
+  };
+}
+
+export function updateSetting(db, key, value) {
+  const allowed = new Map([["tracking_mode", new Set(["all", "allowlist"])]]);
+  if (!allowed.has(key) || !allowed.get(key).has(value)) {
+    throw new Error(`invalid setting ${key}`);
+  }
+
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO settings (key, value, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET
+      value = excluded.value,
+      updated_at = excluded.updated_at
+  `).run(key, value, now);
+
+  return getSettings(db);
+}
+
+export function addTrackingRule(db, { domain, action, note = "" }) {
+  const normalizedDomain = normalizeDomain(domain);
+  if (!normalizedDomain) throw new Error("domain is required");
+  if (!["allow", "block"].includes(action)) throw new Error("action must be allow or block");
+
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO tracking_rules (domain, action, note, created_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(domain, action) DO UPDATE SET
+      note = excluded.note,
+      created_at = excluded.created_at
+  `).run(normalizedDomain, action, note, now);
+
+  return getSettings(db);
+}
+
+export function deleteTrackingRule(db, id) {
+  const result = db.prepare("DELETE FROM tracking_rules WHERE id = ?").run(id);
+  return { deleted: result.changes };
+}
+
 export function startSession(db, payload) {
   const now = new Date().toISOString();
   const id = payload.id || crypto.randomUUID();
   const startAt = payload.start_at || now;
   const parsed = parseUrl(payload.url);
+  if (!isDomainTrackable(db, parsed.domain)) {
+    return {
+      ignored: true,
+      reason: "domain tracking rule",
+      domain: parsed.domain
+    };
+  }
+
   const corrections = getCorrections(db);
   const classification = classifyActivity({ domain: parsed.domain, title: payload.title }, corrections);
   const mergeTarget = findMergeTarget(db, {
@@ -274,6 +355,22 @@ export function deleteSessionsInRange(db, { from, to }) {
   return { deleted: result.changes };
 }
 
+export function deleteSessionsForDomain(db, domain, { from, to } = {}) {
+  const normalizedDomain = normalizeDomain(domain);
+  if (!normalizedDomain) return { deleted: 0 };
+
+  if (from && to) {
+    const result = db.prepare(`
+      DELETE FROM sessions
+      WHERE domain = ? AND start_at >= ? AND start_at < ?
+    `).run(normalizedDomain, from, to);
+    return { deleted: result.changes };
+  }
+
+  const result = db.prepare("DELETE FROM sessions WHERE domain = ?").run(normalizedDomain);
+  return { deleted: result.changes };
+}
+
 export function updateSessionCategory(db, id, { category, scope = "session" }) {
   const normalized = normalizeCategory(category);
   const session = getSession(db, id);
@@ -340,6 +437,36 @@ function durationSeconds(start, end) {
   const endMs = new Date(end).getTime();
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return 0;
   return Math.max(0, Math.round((endMs - startMs) / 1000));
+}
+
+function ensureSetting(db, key, value) {
+  db.prepare(`
+    INSERT OR IGNORE INTO settings (key, value, updated_at)
+    VALUES (?, ?, ?)
+  `).run(key, value, new Date().toISOString());
+}
+
+function isDomainTrackable(db, domain) {
+  const settings = getSettings(db);
+  const rules = settings.tracking_rules;
+  if (rules.some((rule) => rule.action === "block" && domainMatches(domain, rule.domain))) return false;
+  if (settings.tracking_mode === "allowlist") {
+    return rules.some((rule) => rule.action === "allow" && domainMatches(domain, rule.domain));
+  }
+  return true;
+}
+
+function domainMatches(domain, ruleDomain) {
+  return domain === ruleDomain || domain.endsWith(`.${ruleDomain}`);
+}
+
+function normalizeDomain(domain) {
+  return String(domain || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .split("/")[0];
 }
 
 function activeDuration(session, activeUntil) {

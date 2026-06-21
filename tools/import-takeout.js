@@ -1,44 +1,38 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { openDatabase, importBackfilledSession } from "../apps/api/db.js";
 
-const inputPath = process.argv[2];
+export function importTakeoutPath(inputPath, db = openDatabase()) {
+  const files = collectJsonFiles(resolve(inputPath));
+  let imported = 0;
+  let skipped = 0;
 
-if (!inputPath) {
-  console.error("Usage: npm run import:takeout -- /path/to/takeout-folder-or-json");
-  process.exit(1);
-}
+  for (const file of files) {
+    try {
+      const data = JSON.parse(readFileSync(file, "utf8"));
+      const rows = Array.isArray(data) ? data : data.BrowserHistory || data["Browser History"] || [];
 
-const db = openDatabase();
-const files = collectJsonFiles(resolve(inputPath));
-let imported = 0;
-let skipped = 0;
+      for (const row of rows) {
+        const normalized = normalizeTakeoutRow(row, file);
+        if (!normalized) {
+          skipped += 1;
+          continue;
+        }
 
-for (const file of files) {
-  try {
-    const data = JSON.parse(readFileSync(file, "utf8"));
-    const rows = Array.isArray(data) ? data : data.BrowserHistory || data["Browser History"] || [];
-
-    for (const row of rows) {
-      const normalized = normalizeTakeoutRow(row, file);
-      if (!normalized) {
-        skipped += 1;
-        continue;
+        importBackfilledSession(db, normalized);
+        imported += 1;
       }
-
-      importBackfilledSession(db, normalized);
-      imported += 1;
+    } catch (error) {
+      skipped += 1;
+      console.warn(`Skipped ${file}: ${error.message}`);
     }
-  } catch (error) {
-    skipped += 1;
-    console.warn(`Skipped ${file}: ${error.message}`);
   }
+
+  return { imported, skipped };
 }
 
-console.log(`Backfill complete. Imported ${imported} records, skipped ${skipped}.`);
-console.log("Note: backfilled Google/Chrome history usually has timestamps, not reliable active duration.");
-
-function collectJsonFiles(path) {
+export function collectJsonFiles(path) {
   const stats = statSync(path);
   if (stats.isFile()) return path.endsWith(".json") ? [path] : [];
 
@@ -55,7 +49,7 @@ function collectJsonFiles(path) {
   return results;
 }
 
-function normalizeTakeoutRow(row, file) {
+export function normalizeTakeoutRow(row, file) {
   const title = cleanTitle(row.title || row.header || row.name || "");
   const url = firstUrl(row);
   const time = row.time || row.time_usec || row.timestamp || row.date;
@@ -120,4 +114,17 @@ function stableId(input) {
     hash = Math.imul(hash, 0x01000193);
   }
   return `backfill_${(hash >>> 0).toString(16)}`;
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const inputPath = process.argv[2];
+
+  if (!inputPath) {
+    console.error("Usage: npm run import:takeout -- /path/to/takeout-folder-or-json");
+    process.exit(1);
+  }
+
+  const result = importTakeoutPath(inputPath);
+  console.log(`Backfill complete. Imported ${result.imported} records, skipped ${result.skipped}.`);
+  console.log("Note: backfilled Google/Chrome history usually has timestamps, not reliable active duration.");
 }

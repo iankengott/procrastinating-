@@ -5,12 +5,13 @@ const TRACKABLE_PROTOCOLS = ["http:", "https:"];
 let currentSession = null;
 let heartbeatTimer = null;
 let paused = false;
+let pausedUntil = null;
 let idleState = "active";
 let apiOnline = null;
 let lastApiError = null;
 
 chrome.runtime.onInstalled.addListener(async () => {
-  await chrome.storage.local.set({ paused: false });
+  await chrome.storage.local.set({ paused: false, pausedUntil: null });
   chrome.idle.setDetectionInterval(60);
   await refreshPausedState();
   await activateCurrentTab("installed");
@@ -69,13 +70,15 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "status") {
-    sendResponse({ paused, currentSession, apiOnline, lastApiError });
+    sendResponse({ paused, pausedUntil, currentSession, apiOnline, lastApiError });
     return true;
   }
 
   if (message?.type === "setPaused") {
-    chrome.storage.local.set({ paused: Boolean(message.paused) }).then(() => {
-      sendResponse({ paused: Boolean(message.paused) });
+    const nextPaused = Boolean(message.paused);
+    const nextPausedUntil = message.minutes ? new Date(Date.now() + Number(message.minutes) * 60_000).toISOString() : null;
+    chrome.storage.local.set({ paused: nextPaused, pausedUntil: nextPausedUntil }).then(() => {
+      sendResponse({ paused: nextPaused, pausedUntil: nextPausedUntil });
     });
     return true;
   }
@@ -84,8 +87,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 async function refreshPausedState() {
-  const stored = await chrome.storage.local.get({ paused: false });
+  const stored = await chrome.storage.local.get({ paused: false, pausedUntil: null });
   paused = Boolean(stored.paused);
+  pausedUntil = stored.pausedUntil;
+
+  if (paused && pausedUntil && new Date(pausedUntil).getTime() <= Date.now()) {
+    paused = false;
+    pausedUntil = null;
+    await chrome.storage.local.set({ paused: false, pausedUntil: null });
+  }
 }
 
 async function activateCurrentTab(reason) {
@@ -127,6 +137,13 @@ async function startSession(tab) {
     start_at: now,
     metadata: { tabId: tab.id, windowId: tab.windowId }
   });
+
+  if (saved?.ignored) {
+    currentSession = null;
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+    return;
+  }
 
   if (saved?.id) {
     currentSession.id = saved.id;
@@ -174,6 +191,14 @@ function isTrackable(tab) {
     return false;
   }
 }
+
+setInterval(async () => {
+  const wasPaused = paused;
+  await refreshPausedState();
+  if (wasPaused && !paused) {
+    await activateCurrentTab("pause expired");
+  }
+}, 15_000);
 
 async function post(path, body) {
   try {

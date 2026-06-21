@@ -1,13 +1,23 @@
 const state = {
   range: "today",
   since: null,
-  summary: null
+  summary: null,
+  settings: null
 };
 
+const setupPanel = document.querySelector("#setup-panel");
+const dismissSetupButton = document.querySelector("#dismiss-setup");
 const rangeButtons = [...document.querySelectorAll(".range")];
 const sinceForm = document.querySelector("#since-form");
 const exportJsonButton = document.querySelector("#export-json");
 const deleteRangeButton = document.querySelector("#delete-range");
+const trackingModeForm = document.querySelector("#tracking-mode-form");
+const trackingModeSelect = document.querySelector("#tracking-mode");
+const ruleForm = document.querySelector("#rule-form");
+const ruleDomainInput = document.querySelector("#rule-domain");
+const ruleActionSelect = document.querySelector("#rule-action");
+const trackingRulesEl = document.querySelector("#tracking-rules");
+const privacySummaryEl = document.querySelector("#privacy-summary");
 const healthEl = document.querySelector("#health");
 const totalTimeEl = document.querySelector("#total-time");
 const sessionCountEl = document.querySelector("#session-count");
@@ -18,6 +28,15 @@ const sessionsEl = document.querySelector("#sessions");
 const rangeLabelEl = document.querySelector("#range-label");
 const barTemplate = document.querySelector("#bar-template");
 const sessionTemplate = document.querySelector("#session-template");
+
+if (localStorage.getItem("setupDismissed") === "true") {
+  setupPanel.classList.add("is-hidden");
+}
+
+dismissSetupButton.addEventListener("click", () => {
+  localStorage.setItem("setupDismissed", "true");
+  setupPanel.classList.add("is-hidden");
+});
 
 rangeButtons.forEach((button) => {
   button.addEventListener("click", () => {
@@ -60,17 +79,43 @@ deleteRangeButton.addEventListener("click", async () => {
   await loadSummary();
 });
 
+trackingModeForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  state.settings = await fetchJson("/api/settings", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key: "tracking_mode", value: trackingModeSelect.value })
+  });
+  renderSettings();
+});
+
+ruleForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!ruleDomainInput.value.trim()) return;
+
+  state.settings = await fetchJson("/api/tracking-rules", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ domain: ruleDomainInput.value, action: ruleActionSelect.value })
+  });
+  ruleDomainInput.value = "";
+  renderSettings();
+});
+
 async function loadSummary() {
   try {
     const params = new URLSearchParams({ range: state.range });
     if (state.since) params.set("since", state.since);
     const summary = await fetchJson(`/api/summary?${params}`);
+    state.settings = await fetchJson("/api/settings");
     state.summary = summary;
     healthEl.textContent = "Connected";
     renderSummary(summary);
+    renderSettings();
   } catch (error) {
     healthEl.textContent = "API offline";
     sessionsEl.innerHTML = `<p class="empty">Start the local server with npm run dev.</p>`;
+    trackingRulesEl.innerHTML = `<p class="empty">Settings are unavailable while the API is offline.</p>`;
     console.error(error);
   }
 }
@@ -123,6 +168,7 @@ function renderSessions(sessions) {
     const pill = node.querySelector(".pill");
     const select = node.querySelector("select");
     const domainButton = node.querySelector(".domain-button");
+    const deleteDomainButton = node.querySelector(".delete-domain-button");
     const deleteButton = node.querySelector(".delete-button");
 
     title.textContent = session.title || session.url;
@@ -144,6 +190,13 @@ function renderSessions(sessions) {
       renderSummary(await refreshCurrentSummary());
     });
 
+    deleteDomainButton.addEventListener("click", async () => {
+      const confirmed = window.confirm(`Delete all ${session.domain} sessions in the current range?`);
+      if (!confirmed) return;
+      await fetchJson(`/api/domains/${encodeURIComponent(session.domain)}/sessions?${currentRangeParams()}`, { method: "DELETE" });
+      renderSummary(await refreshCurrentSummary());
+    });
+
     deleteButton.addEventListener("click", async () => {
       const confirmed = window.confirm(`Delete this session for ${session.domain}?`);
       if (!confirmed) return;
@@ -153,6 +206,37 @@ function renderSessions(sessions) {
 
     article.dataset.id = session.id;
     sessionsEl.append(node);
+  }
+}
+
+function renderSettings() {
+  if (!state.settings) return;
+
+  trackingModeSelect.value = state.settings.tracking_mode;
+  privacySummaryEl.textContent = `${state.settings.privacy.storage}; ${state.settings.privacy.remote_sync} remote sync`;
+  trackingRulesEl.replaceChildren();
+
+  if (!state.settings.tracking_rules.length) {
+    trackingRulesEl.innerHTML = `<p class="empty">No domain rules yet. Add a block rule to ignore a site, or switch to allowlist mode and add allowed domains.</p>`;
+    return;
+  }
+
+  for (const rule of state.settings.tracking_rules) {
+    const item = document.createElement("span");
+    item.className = "rule";
+    item.innerHTML = `<strong>${rule.action}</strong> ${rule.domain}`;
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "Remove";
+    button.addEventListener("click", async () => {
+      await fetchJson(`/api/tracking-rules/${rule.id}`, { method: "DELETE" });
+      state.settings = await fetchJson("/api/settings");
+      renderSettings();
+    });
+
+    item.append(button);
+    trackingRulesEl.append(item);
   }
 }
 
