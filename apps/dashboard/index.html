@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Procrastinating</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Local attention ledger</p>
+        <h1>Procrastinating</h1>
+      </div>
+      <div class="status" id="health">Connecting...</div>
+    </header>
+
+    <main>
+      <section class="controls" aria-label="Time range">
+        <button class="range is-active" data-range="today">Today</button>
+        <button class="range" data-range="last-hour">Last hour</button>
+        <button class="range" data-range="week">This week</button>
+        <button class="range" data-range="year">This year</button>
+        <form id="since-form">
+          <label for="since">Since</label>
+          <input id="since" type="datetime-local">
+          <button type="submit">Apply</button>
+        </form>
+        <button id="export-json" class="secondary-action" type="button">Export JSON</button>
+        <button id="delete-range" class="danger-action" type="button">Delete range</button>
+      </section>
+
+      <section class="metrics" aria-label="Summary metrics">
+        <article>
+          <span>Total tracked</span>
+          <strong id="total-time">0m</strong>
+        </article>
+        <article>
+          <span>Sessions</span>
+          <strong id="session-count">0</strong>
+        </article>
+        <article>
+          <span>Top category</span>
+          <strong id="top-category">Unknown</strong>
+        </article>
+      </section>
+
+      <section class="grid">
+        <div class="panel">
+          <div class="panel-title">
+            <h2>Fun vs Functional</h2>
+          </div>
+          <div id="categories" class="bars"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">
+            <h2>Top Sites</h2>
+          </div>
+          <div id="domains" class="bars"></div>
+        </div>
+      </section>
+
+      <section class="panel sessions-panel">
+        <div class="panel-title">
+          <h2>Timeline</h2>
+          <span id="range-label"></span>
+        </div>
+        <div id="sessions" class="sessions"></div>
+      </section>
+    </main>
+
+    <template id="bar-template">
+      <div class="bar-row">
+        <div class="bar-label"></div>
+        <div class="bar-track"><div class="bar-fill"></div></div>
+        <div class="bar-time"></div>
+      </div>
+    </template>
+
+    <template id="session-template">
+      <article class="session">
+        <div>
+          <h3></h3>
+          <p></p>
+          <small></small>
+        </div>
+        <div class="session-actions">
+          <span class="pill"></span>
+          <select aria-label="Category">
+            <option value="unknown">Unknown</option>
+            <option value="functional">Functional</option>
+            <option value="fun">Fun</option>
+            <option value="mixed">Mixed</option>
+          </select>
+          <button class="domain-button" type="button">Apply to domain</button>
+          <button class="delete-button" type="button">Delete session</button>
+        </div>
+      </article>
+    </template>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
