@@ -8,26 +8,59 @@ Local-first attention tracking for answering questions like:
 - Was that time mostly fun, functional, mixed, or unknown?
 - What can be reconstructed from before the tracker was installed?
 
-The MVP is intentionally local-first. A Chrome extension records active browser sessions and sends them to a local Node/SQLite service. The dashboard reads from that local database.
+The project is currently a desktop, local-first MVP. A Chrome extension records active browser sessions, a local Node/SQLite service stores them, and a dashboard summarizes the data.
 
-## Current MVP
+## Project Status
 
-- Chrome extension tracks active tab URL, title, browser focus, and idle state.
-- Local API stores sessions in `data/attention.sqlite`.
-- Dashboard shows today, last hour, this week, this year, and custom "since" ranges.
-- Sessions are classified as `functional`, `fun`, `mixed`, or `unknown`.
-- You can correct one session or apply a correction to an entire domain.
-- Brief same-URL interruptions are merged without counting the away-time as active time.
-- Dashboard can export JSON, delete the current range, and delete individual sessions.
-- Dashboard can delete all sessions for a domain in the current range.
-- Tracking rules let you block domains or switch to allowlist-only tracking.
-- Tracking/privacy panel shows the local-only data posture.
-- Extension popup warns when the local API is offline.
-- Extension popup supports pause, 15-minute pause, and 1-hour pause.
-- Google Takeout/Chrome history backfill importer is scaffolded for pre-install history.
-- Demo data and verification fixtures are included.
+Current state: **MVP v0.1 is built and usable for desktop Chrome tracking.**
 
-## Run The Local App
+This is not the full dream system yet. It does not have Google OAuth, Android/phone tracking, or polished installation. It is ready for local testing, daily browser tracking, dashboard review, category correction, basic privacy controls, and first-pass Google Takeout imports.
+
+The current GitHub state includes:
+
+- local API and dashboard
+- Chrome extension
+- SQLite storage
+- fun/functional/mixed/unknown classification
+- correction controls
+- export/delete controls
+- tracking privacy controls
+- Google Takeout importer scaffold
+- demo data script
+- verification tests
+
+## What Works Now
+
+- Tracks active desktop Chrome tabs through the unpacked extension.
+- Records URL, title, domain, path/site section, start time, end time, and active duration.
+- Ends sessions when Chrome loses focus or the user goes idle.
+- Merges brief same-URL interruptions without counting away-time as active time.
+- Stores all data locally in `data/attention.sqlite`.
+- Summarizes activity for today, last hour, this week, this year, and custom "since" ranges.
+- Classifies sessions as `functional`, `fun`, `mixed`, or `unknown`.
+- Lets you correct a single session or apply a correction to an entire domain.
+- Lets you export JSON for the current dashboard range.
+- Lets you delete one session, a full range, or a domain within the current range.
+- Lets you block domains or switch to allowlist-only tracking.
+- Shows the local-only privacy posture in the dashboard.
+- Supports extension pause/resume, 15-minute pause, and 1-hour pause.
+- Warns in the extension popup when the local API is offline.
+- Has a first-pass Google Takeout/Chrome history importer for pre-install history.
+- Includes tests and synthetic Takeout fixtures.
+
+## Known Limits
+
+- It has only been verified with synthetic/local checks, not a full real browsing day.
+- The Takeout importer handles common JSON shapes, but real Google exports may need format-specific fixes.
+- Backfilled history usually has timestamps, not reliable active duration.
+- Desktop Chrome is the only live tracker right now.
+- Android/phone tracking is planned but not implemented.
+- Google OAuth/account connection is planned but not implemented.
+- Calendar, Gmail, Drive, and richer context are not connected yet.
+- There is no packaged installer; setup is still developer-style.
+- Local git history may show divergence because earlier GitHub publishing happened through connector commits, but the file tree on GitHub matches the local project state.
+
+## Quick Start
 
 Requirements:
 
@@ -75,6 +108,19 @@ The extension popup can:
 - open the dashboard
 - warn when the local API is not reachable
 
+## Dashboard Controls
+
+The dashboard supports:
+
+- time windows: today, last hour, this week, this year, and since a custom date
+- JSON export for the current range
+- delete current range
+- delete one session
+- delete a domain in the current range
+- category corrections for one session or an entire domain
+- tracking mode: track all except blocked, or allowlist-only
+- domain rules: allow or block a domain
+
 ## Backfill Pre-Install History
 
 Backfilled data can often tell what you visited or watched and when, but usually cannot prove how long you actively spent there. Imported rows are marked as `backfilled`.
@@ -92,19 +138,6 @@ Supported first-pass sources:
 - Google Search/My Activity JSON where a URL and timestamp are present
 
 The importer is tested against synthetic fixtures in `tests/fixtures/takeout`. Real Takeout exports may still need format-specific fixes.
-
-## Dashboard Controls
-
-The dashboard supports:
-
-- time windows: today, last hour, this week, this year, and since a custom date
-- JSON export for the current range
-- delete current range
-- delete one session
-- delete a domain in the current range
-- category corrections for one session or an entire domain
-- tracking mode: track all except blocked, or allowlist-only
-- domain rules: allow or block a domain
 
 ## Data Model
 
@@ -133,39 +166,60 @@ Example:
 }
 ```
 
-## Roadmap
+## Project Map
 
-### MVP Polish
+- `apps/api/`: local Node HTTP API and SQLite persistence.
+- `apps/dashboard/`: browser dashboard served by the local API.
+- `extension/`: unpacked Chrome extension.
+- `tools/import-takeout.js`: Google Takeout/history importer.
+- `tools/seed-demo.js`: demo data seeder.
+- `tools/verify.js`: verification checks.
+- `tests/fixtures/takeout/`: synthetic importer fixtures.
+- `data/`: local SQLite database location; ignored by git.
 
-- Test with the unpacked extension during normal browsing.
+## Next Work
+
+Best next no-account-required work:
+
+- Test the unpacked extension during a normal browsing day.
 - Add a calendar-scale timeline and richer day/week drilldowns.
 - Add more tests around API routes and importer formats.
-- Add packaging/install scripts for less technical setup.
+- Add a simple install/start script.
+- Add local database backup/restore controls.
+- Add more privacy controls, such as delete by domain globally and optional encrypted storage.
 
-### Post-MVP: Google Account Connection
+Google account work:
 
-- Add optional OAuth only after the local tracker is useful.
-- Sync Calendar context for explaining work/meeting blocks.
-- Consider Drive/Gmail metadata only with explicit opt-in.
-- Keep sensitive scopes out of the MVP.
+- Add OAuth only after the local tracker feels useful.
+- Start with Calendar context for explaining work/meeting blocks.
+- Add Drive/Gmail metadata only with explicit opt-in.
+- Keep sensitive scopes out of the MVP until there is a clear reason.
 
-### Post-MVP: Android And Phone Tracking
+Android/phone work:
 
-Phone activity needs its own collector because desktop Chrome extension APIs do not cover Android system/app usage.
+- Build a separate Android collector; desktop Chrome extension APIs do not cover phone activity.
+- Likely first approach: Android `UsageStatsManager` for app-level foreground time.
+- Possible deeper approach: Android Accessibility Service, but only if page/app context is worth the extra sensitivity.
+- Import mobile Chrome/Google history through Takeout as a partial backfill.
+- Reuse the same local API/event model with sources like `android_usage_stats` or `mobile_chrome_backfill`.
 
-Possible approaches:
+## Resume Checklist
 
-- Android app using UsageStatsManager for app-level foreground time.
-- Android Accessibility Service only if deeper page/app context is worth the extra sensitivity.
-- Chrome/Google history backfill from Takeout for mobile browsing history.
-- Optional manual import from Digital Wellbeing exports if available.
-- Same local API/event model, with `source` values like `android_usage_stats` or `mobile_chrome_backfill`.
+When picking this project back up:
 
-Phone tracking should remain opt-in, local-first where possible, and clearly separate app-level duration from page-level browser detail.
+1. Run `npm test`.
+2. Run `npm run dev`.
+3. Open `http://localhost:3847`.
+4. Load or reload the unpacked Chrome extension from `extension/`.
+5. Browse normally for at least an hour.
+6. Check whether sessions, idle behavior, categories, and domain rules feel correct.
+7. Export JSON from the dashboard and inspect the shape before changing the data model.
+8. If testing backfill, run `npm run import:takeout -- /path/to/Takeout` on a copied/exported Takeout folder.
 
 ## Privacy Defaults
 
 - Store data locally in SQLite.
 - Ignore incognito/private browser tabs.
 - Provide pause/resume in the extension popup.
+- Support blocked domains and allowlist-only tracking.
 - Treat Gmail, Drive, Calendar, phone, and OAuth data as later opt-in features.
